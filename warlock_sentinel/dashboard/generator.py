@@ -27,7 +27,9 @@ class DashboardGenerator:
         project_name: str,
         rerun_command: str = "warlock",
     ) -> Path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.as_posix().endswith("."):
+      output_path = self.default_output_path(Path.cwd())
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
         modules = self._group_by_module(report.files)
         health_score = self._weighted_health_score(report.files)
@@ -52,21 +54,30 @@ class DashboardGenerator:
           <p class=\"text-slate-300 mt-3\">Proyecto: <span class=\"font-semibold\">{self._escape(project_name)}</span></p>
           <p class=\"text-slate-400 text-sm mt-1\">Generado: {self._escape(generated_at)}</p>
         </div>
-        <div class=\"flex flex-col gap-3 w-full lg:w-auto\">
+        <div class="flex flex-col gap-3 w-full lg:w-auto">
           <button
             id=\"rerun-warlock\"
-            class=\"w-full lg:w-auto bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg shadow-sky-900/40 transition\"
+            class="w-full lg:w-auto bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-7 py-4 rounded-xl shadow-xl shadow-sky-900/40 transition text-base"
           >
-            Re-ejecutar Warlock
+            Re-ejecutar Warlock ahora
           </button>
           <p class=\"text-xs text-slate-400\">Comando sugerido: <span class=\"font-mono\">{self._escape(rerun_command)}</span></p>
         </div>
       </div>
 
-      <div class=\"grid grid-cols-1 md:grid-cols-3 gap-4 mt-6\">
-        <div class=\"rounded-xl border border-slate-800 bg-slate-900/60 p-4\">
-          <p class=\"text-slate-400 text-sm\">Global Health Score</p>
-          <p class=\"text-4xl font-extrabold {self._score_color_class(health_score)}\">{health_score:.2f}%</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-center gap-4">
+          <div class="relative w-24 h-24 rounded-full border-4 border-slate-700 grid place-items-center">
+            <div class="absolute inset-1 rounded-full bg-slate-950/80"></div>
+            <div class="relative text-center">
+              <p class="text-xs text-slate-400">Health</p>
+              <p class="text-2xl font-extrabold {self._score_color_class(health_score)}">{health_score:.0f}</p>
+            </div>
+          </div>
+          <div>
+            <p class="text-slate-400 text-sm">Global Health Score</p>
+            <p class="text-3xl font-extrabold {self._score_color_class(health_score)}">{health_score:.2f}%</p>
+          </div>
         </div>
         <div class=\"rounded-xl border border-slate-800 bg-slate-900/60 p-4\">
           <p class=\"text-slate-400 text-sm\">Coverage General</p>
@@ -136,7 +147,11 @@ class DashboardGenerator:
                     coverage=self._weighted_health_score(module_files),
                     files=sorted(module_files, key=lambda item: item.coverage),
                 )
-            )
+                    <main class="space-y-4">
+                      <section class="mb-2">
+                        <h2 class="text-2xl font-bold">Módulos del Proyecto</h2>
+                        <p class="text-slate-400 text-sm">Haz click en cada módulo para expandir y ver el detalle por archivo.</p>
+                      </section>
 
         return sorted(modules, key=lambda module: module.coverage)
 
