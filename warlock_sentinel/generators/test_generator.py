@@ -77,6 +77,7 @@ class TestGenerator:
         self,
         project_info: ProjectInfo,
         file_path: str,
+        source_code: str,
         failed_test_code: str,
         console_error: str,
     ) -> str:
@@ -84,6 +85,7 @@ class TestGenerator:
         prompt = self._build_fix_prompt(
             project_info=project_info,
             file_path=file_path,
+            source_code=source_code,
             failed_test_code=failed_test_code,
             console_error=console_error,
         )
@@ -131,6 +133,7 @@ class TestGenerator:
         self,
         project_info: ProjectInfo,
         file_path: str,
+        source_code: str,
         failed_test_code: str,
         console_error: str,
     ) -> str:
@@ -147,6 +150,9 @@ class TestGenerator:
 
             ERROR DE CONSOLA:
             {console_error}
+
+            CÓDIGO FUENTE ORIGINAL:
+            {source_code}
 
             TEST FALLIDO:
             {failed_test_code}

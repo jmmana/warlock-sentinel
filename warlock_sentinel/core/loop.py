@@ -21,6 +21,7 @@ async def run_autocuration_loop(
     config: SentinelConfig,
     console: Console,
     gemini_api_key: str | None = None,
+    target_file: Path | None = None,
 ) -> None:
     adapter = _select_adapter(project_info)
     parser = CoverageParser()
@@ -55,6 +56,13 @@ async def run_autocuration_loop(
             return
 
         low_files = [file for file in report.files if file.coverage < target and file.gaps]
+        if target_file is not None:
+            target_path = target_file if target_file.is_absolute() else project_root / target_file
+            low_files = [
+                file
+                for file in low_files
+                if _resolve_source_path(project_root=project_root, file_path=file.file_path) == target_path
+            ]
         if not low_files:
             console.print(
                 Panel.fit(
@@ -94,7 +102,7 @@ async def run_autocuration_loop(
             f"[cyan]Coverage after iteration {iteration}:[/cyan] {refreshed_report.total_coverage:.2f}%"
         )
 
-        _render_iteration_summary(console, low_files[: len(selected)], refreshed_report)
+        _render_iteration_summary(console, report, refreshed_report, target=target)
 
         if refreshed_report.total_coverage >= target:
             console.print(Panel.fit("Coverage target reached after test execution.", style="green"))
@@ -164,17 +172,13 @@ async def _generate_tests_for_files(
                 project_info=project_info,
                 project_root=project_root,
                 test_path=target_test_path,
+                source_code=source_path.read_text(encoding="utf-8"),
                 initial_code=test_code,
                 console=console,
             )
 
             if validated_code != test_code:
-                await asyncio.to_thread(
-                    _write_test_code,
-                    path=target_test_path,
-                    content=validated_code,
-                    write_mode="overwrite",
-                )
+                await asyncio.to_thread(_write_test_code, path=target_test_path, content=validated_code, write_mode="overwrite")
 
             generated_files.append(target_test_path)
             progress.advance(task_id)
@@ -189,6 +193,7 @@ async def _validate_and_repair_test(
     project_info: ProjectInfo,
     project_root: Path,
     test_path: Path,
+    source_code: str,
     initial_code: str,
     console: Console,
 ) -> str:
@@ -217,6 +222,7 @@ async def _validate_and_repair_test(
             current_code = await generator.fix_test(
                 project_info=project_info,
                 file_path=str(test_path),
+                source_code=source_code,
                 failed_test_code=current_code,
                 console_error=last_error,
             )
@@ -238,18 +244,14 @@ def _resolve_source_path(project_root: Path, file_path: str) -> Path:
 
 def _write_test_code(path: Path, content: str, write_mode: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if write_mode == "append" and path.exists():
-        existing = path.read_text(encoding="utf-8")
-        merged = existing.rstrip() + "\n\n" + content.strip() + "\n"
-        path.write_text(merged, encoding="utf-8")
-        return
     path.write_text(content.strip() + "\n", encoding="utf-8")
 
 
 def _render_iteration_summary(
     console: Console,
-    previous_files: list[FileCoverage],
+    previous_report,
     refreshed_report,
+    target: float,
 ) -> None:
     table = Table(title="Iteration Summary", show_lines=False)
     table.add_column("Archivo", style="cyan")
@@ -259,7 +261,7 @@ def _render_iteration_summary(
 
     refreshed_map = {file_cov.file_path: file_cov for file_cov in refreshed_report.files}
 
-    for previous in previous_files:
+    for previous in previous_report.files:
         current = refreshed_map.get(previous.file_path)
         new_coverage = current.coverage if current else previous.coverage
         delta_state = _status_emoji(new_coverage)
@@ -269,6 +271,13 @@ def _render_iteration_summary(
             f"{new_coverage:.2f}%",
             delta_state,
         )
+
+    table.add_row(
+        "Total",
+        f"{previous_report.total_coverage:.2f}%",
+        f"{refreshed_report.total_coverage:.2f}%",
+        _status_emoji(refreshed_report.total_coverage if refreshed_report.total_coverage else target),
+    )
 
     console.print(table)
 
