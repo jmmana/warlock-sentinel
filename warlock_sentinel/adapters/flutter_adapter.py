@@ -83,8 +83,11 @@ class FlutterAdapter(BaseAdapter):
         config: SentinelConfig,
         project: ProjectInfo,
         project_root: Path,
+        command_args: list[str] | None = None,
     ) -> None:
         command = ["flutter", "test", str(test_path), "--coverage"]
+        if command_args:
+            command = ["flutter", "test", *command_args, str(test_path), "--coverage"]
         completed = subprocess.run(
             command,
             cwd=project_root,

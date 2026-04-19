@@ -80,7 +80,7 @@ class SentinelConfig:
         return yaml.safe_dump(self.to_dict(), sort_keys=False, allow_unicode=False)
 
     def validate(self) -> None:
-        allowed_frameworks = {"auto", "flutter", "react"}
+        allowed_frameworks = {"auto", "flutter", "react", "angular", "csharp"}
         if self.framework not in allowed_frameworks:
             raise ConfigValidationError(
                 f"framework must be one of {sorted(allowed_frameworks)}, got: {self.framework}"

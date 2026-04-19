@@ -74,6 +74,7 @@ class BaseAdapter(ABC):
         config: SentinelConfig,
         project: ProjectInfo,
         project_root: Path,
+        command_args: list[str] | None = None,
     ) -> None:
         """Execute one generated test file to validate it immediately."""
 

@@ -15,6 +15,14 @@ from warlock_sentinel.coverage.parser import CoverageGap
 from warlock_sentinel.project_detector import ProjectInfo
 
 
+FRAMEWORK_TEMPLATE_MAP: dict[str, str] = {
+    "flutter": "flutter_test.jinja2",
+    "react": "react_test.jinja2",
+    "angular": "angular_test.jinja2",
+    "csharp": "csharp_test.jinja2",
+}
+
+
 class TestGenerator:
     def __init__(
         self,
@@ -84,7 +92,7 @@ class TestGenerator:
         source_code: str,
         coverage_gaps: list[CoverageGap],
     ) -> str:
-        template_name = "flutter_test.jinja2" if project_info.framework == "flutter" else "react_test.jinja2"
+        template_name = FRAMEWORK_TEMPLATE_MAP.get(project_info.framework, "react_test.jinja2")
         prompt_template = self.template_env.get_template(template_name)
 
         return prompt_template.render(
@@ -101,6 +109,7 @@ class TestGenerator:
             file_path=file_path,
             source_code=source_code,
             coverage_gaps=coverage_gaps,
+            knowledge_base=self._knowledge_base(project_info),
         )
 
     def _build_fix_prompt(
@@ -122,6 +131,7 @@ class TestGenerator:
             source_code=source_code,
             failed_test_code=failed_test_code,
             console_error=console_error,
+            knowledge_base=self._knowledge_base(project_info),
         )
 
     def _call_gemini(self, prompt: str) -> str:
@@ -142,24 +152,46 @@ class TestGenerator:
 
     def _render_fallback_template(self, project_info: ProjectInfo, file_path: str) -> str:
         if project_info.framework == "flutter":
-                        return (
-                                "import 'package:flutter_test/flutter_test.dart';\n"
-                                "import 'package:mocktail/mocktail.dart';\n\n"
-                                f"void main() {{\n  group('Generated fallback for {Path(file_path).name}', () {{\n"
-                                "    test('should validate behavior', () {\n"
-                                "      expect(true, isTrue);\n"
-                                "    });\n"
-                                "  });\n}\n"
-                        )
+            return (
+                "import 'package:flutter_test/flutter_test.dart';\n"
+                "import 'package:mocktail/mocktail.dart';\n\n"
+                f"void main() {{\n  group('Generated fallback for {Path(file_path).name}', () {{\n"
+                "    test('should validate behavior', () {\n"
+                "      expect(true, isTrue);\n"
+                "    });\n"
+                "  });\n}\n"
+            )
 
-                return (
-                        "import { describe, it, expect } from '@jest/globals';\n\n"
-                        f"describe('Generated fallback for {Path(file_path).name}', () => {{\n"
-                        "  it('validates expected behavior', () => {\n"
-                        "    expect(true).toBe(true);\n"
-                        "  });\n"
-                        "});\n"
-                )
+        if project_info.framework == "angular":
+            return (
+                "import { TestBed } from '@angular/core/testing';\n"
+                "import { of } from 'rxjs';\n\n"
+                f"describe('Generated fallback for {Path(file_path).name}', () => {{\n"
+                "  it('validates expected behavior', () => {\n"
+                "    expect(true).toBeTrue();\n"
+                "  });\n"
+                "});\n"
+            )
+
+        if project_info.framework == "csharp":
+            return (
+                "using Xunit;\n\n"
+                f"public class GeneratedFallback_{Path(file_path).stem} {{\n"
+                "    [Fact]\n"
+                "    public void ValidatesExpectedBehavior() {\n"
+                "        Assert.True(true);\n"
+                "    }\n"
+                "}\n"
+            )
+
+        return (
+            "import { describe, it, expect } from '@jest/globals';\n\n"
+            f"describe('Generated fallback for {Path(file_path).name}', () => {{\n"
+            "  it('validates expected behavior', () => {\n"
+            "    expect(true).toBe(true);\n"
+            "  });\n"
+            "});\n"
+        )
 
     def _detect_state_management(self, project_info: ProjectInfo) -> str:
         if project_info.framework == "flutter" and "riverpod" in project_info.stacks:
@@ -168,6 +200,10 @@ class TestGenerator:
             return "Redux"
         if project_info.framework == "react" and "zustand" in project_info.stacks:
             return "Zustand"
+        if project_info.framework == "angular" and "ngrx" in project_info.stacks:
+            return "NgRx"
+        if project_info.framework == "csharp":
+            return "Dependency Injection"
         return "Unknown/Standard"
 
     def _detect_backend_tech(self, project_info: ProjectInfo) -> str:
@@ -176,10 +212,41 @@ class TestGenerator:
         return "HTTP/API layer"
 
     def _test_tool(self, project_info: ProjectInfo) -> str:
-        return "flutter_test" if project_info.framework == "flutter" else "Jest + RTL"
+        if project_info.framework == "flutter":
+            return "flutter_test"
+        if project_info.framework == "angular":
+            return "Jasmine/Karma or Jest"
+        if project_info.framework == "csharp":
+            return "dotnet test + xUnit/NUnit"
+        return "Jest + RTL"
 
     def _mock_library(self, project_info: ProjectInfo) -> str:
-        return "mocktail / riverpod_test" if project_info.framework == "flutter" else "MSW / jest mocks"
+        if project_info.framework == "flutter":
+            return "mocktail / riverpod_test"
+        if project_info.framework == "angular":
+            return "Jest spies / TestBed / Jasmine mocks"
+        if project_info.framework == "csharp":
+            return "Moq / FakeItEasy"
+        return "MSW / jest mocks"
+
+    def _knowledge_base(self, project_info: ProjectInfo) -> str:
+        if "supabase" not in project_info.stacks:
+            return ""
+
+        rules: list[str] = ["Supabase mocking rules:"]
+        if project_info.framework == "flutter":
+            rules.append("- Use mocktail to intercept client.from('table').select().")
+            rules.append("- Prefer typed fakes over real network calls.")
+        elif project_info.framework == "angular":
+            rules.append("- Mock the Supabase service with of(mockData) to preserve RxJS reactivity.")
+            rules.append("- Keep observables cold and deterministic in tests.")
+        elif project_info.framework == "csharp":
+            rules.append("- Use interfaces for Supabase.Client and inject them via dependency inversion.")
+            rules.append("- Generate test data as JSON fixtures or strongly typed DTOs.")
+        else:
+            rules.append("- Mock the Supabase boundary rather than the business logic.")
+
+        return "\n".join(rules)
 
     def _read_source_file(self, file_path: str) -> str:
         return Path(file_path).read_text(encoding="utf-8")

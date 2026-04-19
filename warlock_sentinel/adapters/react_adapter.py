@@ -93,6 +93,7 @@ class ReactAdapter(BaseAdapter):
         config: SentinelConfig,
         project: ProjectInfo,
         project_root: Path,
+        command_args: list[str] | None = None,
     ) -> None:
         manager = project.package_manager or "npm"
         if manager == "pnpm":
@@ -103,6 +104,9 @@ class ReactAdapter(BaseAdapter):
             command = ["bun", "test", str(test_path), "--coverage"]
         else:
             command = ["npm", "test", "--", str(test_path), "--coverage"]
+
+        if command_args:
+            command.extend(command_args)
 
         completed = subprocess.run(
             command,

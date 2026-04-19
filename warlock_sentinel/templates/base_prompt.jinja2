@@ -8,6 +8,14 @@ Core Principles
 - Return only runnable test code, with no explanations.
 - If a Riverpod, Supabase, or asynchronous dependency exists, model it explicitly and safely.
 
+Framework-Neutral Knowledge Base
+{% if knowledge_base %}
+{{ knowledge_base }}
+{% else %}
+- Keep framework-specific behavior isolated behind the smallest possible test seam.
+- Mock at the boundary, not inside the unit under test.
+{% endif %}
+
 Output Contract
 - The final answer must be a single test file ready to save.
 - Avoid markdown fences unless explicitly required by the specific framework template.

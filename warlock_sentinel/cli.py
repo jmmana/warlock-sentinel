@@ -18,7 +18,7 @@ from warlock_sentinel.project_detector import ProjectDetector
 app = typer.Typer(
     add_completion=False,
     help=(
-        "Warlock Sentinel: AI testing agent for Flutter and React/Next.js. "
+        "Warlock Sentinel: AI testing agent for Flutter, React/Next.js, Angular, and C#. "
         "Run `warlock init` once, then execute `warlock` in your target repository."
     ),
 )
@@ -54,7 +54,11 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing s
 
 @app.command()
 def dashboard(
-    framework: str = typer.Option("auto", "--framework", help="Framework override: auto | flutter | react"),
+    framework: str = typer.Option(
+        "auto",
+        "--framework",
+        help="Framework override: auto | flutter | react | angular | csharp",
+    ),
     output: str | None = typer.Option(None, "--output", help="Output HTML path override"),
 ) -> None:
     """Generate only the HTML dashboard from existing coverage reports."""
@@ -94,7 +98,7 @@ def run(
     framework: str = typer.Option(
         "auto",
         "--framework",
-        help="Framework override: auto | flutter | react",
+        help="Framework override: auto | flutter | react | angular | csharp",
     ),
     api_key: str | None = typer.Option(
         None,
@@ -138,8 +142,10 @@ def _detect_project(framework: str, project_root: Path):
     project_info = detector.detect(project_root)
 
     if framework != "auto":
-        if framework not in {"flutter", "react"}:
-            console.print("[red]Invalid --framework value. Use auto, flutter, or react.[/red]")
+        if framework not in {"flutter", "react", "angular", "csharp"}:
+            console.print(
+                "[red]Invalid --framework value. Use auto, flutter, react, angular, or csharp.[/red]"
+            )
             raise typer.Exit(code=2)
         project_info = replace(project_info, framework=framework)
 

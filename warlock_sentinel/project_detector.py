@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-FrameworkName = Literal["flutter", "react", "unknown"]
+FrameworkName = Literal["flutter", "react", "angular", "csharp", "unknown"]
 
 
 @dataclass(slots=True)
@@ -23,8 +23,14 @@ class ProjectDetector:
     """Detect supported framework and stack signals from repository markers."""
 
     def detect(self, project_root: Path) -> ProjectInfo:
+        if self._has_any(project_root, ["**/*.csproj", "**/*.sln"]):
+            return self._detect_csharp(project_root)
+
         if (project_root / "pubspec.yaml").exists():
             return self._detect_flutter(project_root)
+
+        if self._has_any(project_root, ["**/angular.json", "**/nx.json"]):
+            return self._detect_angular(project_root)
 
         if (project_root / "package.json").exists():
             return self._detect_react(project_root)
@@ -60,6 +66,59 @@ class ProjectDetector:
             framework="flutter",
             language="dart",
             package_manager="pub",
+            stacks=stacks,
+            metadata=metadata,
+        )
+
+    def _detect_angular(self, project_root: Path) -> ProjectInfo:
+        package_json_path = project_root / "package.json"
+        package_data = self._load_package_json(package_json_path) if package_json_path.exists() else {}
+        deps = self._collect_dependencies(package_data)
+
+        stacks: list[str] = []
+        metadata: dict[str, str] = {}
+
+        if "@supabase/supabase-js" in deps:
+            stacks.append("supabase")
+
+        if "@ngrx/store" in deps or "@ngrx/effects" in deps:
+            stacks.append("ngrx")
+
+        metadata["has_src"] = str((project_root / "src").exists()).lower()
+        metadata["has_app"] = str((project_root / "app").exists()).lower()
+        metadata["has_angular_json"] = str(self._has_any(project_root, ["**/angular.json"])).lower()
+        metadata["has_nx_json"] = str(self._has_any(project_root, ["**/nx.json"])).lower()
+
+        return ProjectInfo(
+            root=project_root,
+            framework="angular",
+            language="typescript",
+            package_manager=self._detect_package_manager(project_root),
+            stacks=stacks,
+            metadata=metadata,
+        )
+
+    def _detect_csharp(self, project_root: Path) -> ProjectInfo:
+        project_files = [*project_root.glob("**/*.csproj"), *project_root.glob("**/*.sln")]
+        stacks: list[str] = []
+        metadata: dict[str, str] = {}
+
+        project_text = "\n".join(self._safe_read_text(path) for path in project_files)
+        if "Supabase" in project_text:
+            stacks.append("supabase")
+        if "Microsoft.EntityFrameworkCore" in project_text:
+            stacks.append("entity-framework")
+        if "Moq" in project_text:
+            stacks.append("moq")
+
+        metadata["has_solution"] = str(any(path.suffix == ".sln" for path in project_files)).lower()
+        metadata["project_file_count"] = str(len(project_files))
+
+        return ProjectInfo(
+            root=project_root,
+            framework="csharp",
+            language="csharp",
+            package_manager=None,
             stacks=stacks,
             metadata=metadata,
         )
@@ -129,3 +188,12 @@ class ProjectDetector:
             if isinstance(values, dict):
                 deps.update(str(name) for name in values.keys())
         return deps
+
+    def _has_any(self, project_root: Path, patterns: list[str]) -> bool:
+        return any(any(project_root.glob(pattern)) for pattern in patterns)
+
+    def _safe_read_text(self, path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError:
+            return ""

@@ -8,8 +8,8 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-from warlock_sentinel.adapters.flutter_adapter import FlutterAdapter
-from warlock_sentinel.adapters.react_adapter import ReactAdapter
+from warlock_sentinel.adapters.base import BaseAdapter
+from warlock_sentinel.adapters.registry import get_adapter, supported_frameworks
 from warlock_sentinel.config import SentinelConfig
 from warlock_sentinel.coverage.parser import CoverageParser, FileCoverage
 from warlock_sentinel.generators.test_generator import TestGenerator
@@ -130,7 +130,7 @@ async def run_autocuration_loop(
 
 
 async def _generate_tests_for_files(
-    adapter: FlutterAdapter | ReactAdapter,
+    adapter: BaseAdapter,
     generator: TestGenerator,
     config: SentinelConfig,
     project_info: ProjectInfo,
@@ -198,7 +198,7 @@ async def _generate_tests_for_files(
 
 
 async def _validate_and_repair_test(
-    adapter: FlutterAdapter | ReactAdapter,
+    adapter: BaseAdapter,
     generator: TestGenerator,
     config: SentinelConfig,
     project_info: ProjectInfo,
@@ -314,12 +314,15 @@ def _status_emoji(coverage: float) -> str:
     return "🟢"
 
 
-def _select_adapter(project_info: ProjectInfo) -> FlutterAdapter | ReactAdapter:
-    if project_info.framework == "flutter":
-        return FlutterAdapter()
-    if project_info.framework == "react":
-        return ReactAdapter()
-    raise RuntimeError("Unsupported framework for autocuration loop")
+def _select_adapter(project_info: ProjectInfo) -> BaseAdapter:
+    try:
+        return get_adapter(project_info.framework)
+    except KeyError as error:
+        supported = ", ".join(supported_frameworks()) or "none"
+        raise RuntimeError(
+            f"Unsupported framework for autocuration loop: {project_info.framework}. "
+            f"Registered adapters: {supported}"
+        ) from error
 
 
 def _resolve_api_key(config: SentinelConfig) -> str | None:
