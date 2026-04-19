@@ -20,6 +20,13 @@ FRAMEWORK_TEMPLATE_MAP: dict[str, str] = {
     "react": "react_test.jinja2",
     "angular": "angular_test.jinja2",
     "csharp": "csharp_test.jinja2",
+    "nextjs": "nextjs_test.jinja2",
+    "vue": "vue_test.jinja2",
+    "nestjs": "nestjs_test.jinja2",
+}
+
+STACK_TEMPLATE_MAP: dict[str, str] = {
+    "nextjs": "nextjs_test.jinja2",
 }
 
 
@@ -92,7 +99,7 @@ class TestGenerator:
         source_code: str,
         coverage_gaps: list[CoverageGap],
     ) -> str:
-        template_name = FRAMEWORK_TEMPLATE_MAP.get(project_info.framework, "react_test.jinja2")
+        template_name = self._resolve_template_name(project_info)
         prompt_template = self.template_env.get_template(template_name)
 
         return prompt_template.render(
@@ -111,6 +118,12 @@ class TestGenerator:
             coverage_gaps=coverage_gaps,
             knowledge_base=self._knowledge_base(project_info),
         )
+
+    def _resolve_template_name(self, project_info: ProjectInfo) -> str:
+        for stack in project_info.stacks:
+            if stack in STACK_TEMPLATE_MAP:
+                return STACK_TEMPLATE_MAP[stack]
+        return FRAMEWORK_TEMPLATE_MAP.get(project_info.framework, "react_test.jinja2")
 
     def _build_fix_prompt(
         self,

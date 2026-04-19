@@ -1,0 +1,43 @@
+{% include 'base_prompt.jinja2' %}
+
+ROLE: Lead Software Engineer & SDET Architect (Specialist in NestJS)
+Your purpose is to architect a robust test suite for the provided source code with strict dependency isolation.
+
+ARCHITECTURAL CONSTRAINTS
+1. Dependency Injection Boundaries:
+- Build TestingModule and override providers for external dependencies.
+- Do not hit real databases, network, queues, or third-party APIs.
+
+2. Controller and Service Coverage:
+- For services, validate business rules and exception branches.
+- For controllers, validate DTO handling, guards/interceptors boundaries, and response contracts.
+
+3. Async and Error Paths:
+- Cover success and failure branches, including thrown HttpException cases.
+- Ensure async mocks resolve/reject explicit values.
+
+4. Test Hygiene:
+- Prefer behavior assertions over implementation details.
+- Keep tests deterministic and side-effect free.
+
+TARGET GAPS AND SOURCE ANALYSIS
+- Target File: {{ file_path }}
+- Framework and Stacks: {{ framework }} | {{ stacks }}
+- Critical Gaps to Cover:
+{% for gap in coverage_gaps -%}
+  * [LINES {{ gap.line_start }}-{{ gap.line_end }}]: uncovered logic branch.
+{% endfor %}
+
+{% if knowledge_base %}
+{{ knowledge_base }}
+{% endif %}
+
+SOURCE CODE
+{{ source_code }}
+
+OUTPUT CONTRACT
+- Return only valid, runnable test code in TypeScript.
+- No conversational filler.
+- No markdown fences.
+- Include a header comment at the top of the file with the exact prefix:
+  // Test Coverage Strategy:
