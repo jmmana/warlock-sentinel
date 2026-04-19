@@ -27,6 +27,8 @@ FRAMEWORK_TEMPLATE_MAP: dict[str, str] = {
 
 STACK_TEMPLATE_MAP: dict[str, str] = {
     "nextjs": "nextjs_test.jinja2",
+    "vue": "vue_test.jinja2",
+    "nestjs": "nestjs_test.jinja2",
 }
 
 
@@ -209,12 +211,16 @@ class TestGenerator:
     def _detect_state_management(self, project_info: ProjectInfo) -> str:
         if project_info.framework == "flutter" and "riverpod" in project_info.stacks:
             return "Riverpod"
+        if "pinia" in project_info.stacks:
+            return "Pinia"
         if project_info.framework == "react" and "redux" in project_info.stacks:
             return "Redux"
         if project_info.framework == "react" and "zustand" in project_info.stacks:
             return "Zustand"
         if project_info.framework == "angular" and "ngrx" in project_info.stacks:
             return "NgRx"
+        if "nestjs" in project_info.stacks:
+            return "NestJS DI"
         if project_info.framework == "csharp":
             return "Dependency Injection"
         return "Unknown/Standard"
@@ -231,6 +237,10 @@ class TestGenerator:
             return "Jasmine/Karma or Jest"
         if project_info.framework == "csharp":
             return "dotnet test + xUnit/NUnit"
+        if "nestjs" in project_info.stacks:
+            return "Jest + Nest TestingModule"
+        if "vue" in project_info.stacks:
+            return "Vitest/Jest + Vue Test Utils"
         return "Jest + RTL"
 
     def _mock_library(self, project_info: ProjectInfo) -> str:
@@ -240,6 +250,10 @@ class TestGenerator:
             return "Jest spies / TestBed / Jasmine mocks"
         if project_info.framework == "csharp":
             return "Moq / FakeItEasy"
+        if "nestjs" in project_info.stacks:
+            return "Jest mocks / provider overrides"
+        if "vue" in project_info.stacks:
+            return "Vue Test Utils stubs / module mocks"
         return "MSW / jest mocks"
 
     def _knowledge_base(self, project_info: ProjectInfo) -> str:

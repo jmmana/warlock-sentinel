@@ -135,6 +135,12 @@ class ProjectDetector:
         if "next" in deps:
             stacks.append("nextjs")
 
+        if "vue" in deps or "@vue/runtime-core" in deps:
+            stacks.append("vue")
+
+        if "@nestjs/core" in deps or "@nestjs/common" in deps:
+            stacks.append("nestjs")
+
         if "@supabase/supabase-js" in deps:
             stacks.append("supabase")
 
@@ -147,6 +153,9 @@ class ProjectDetector:
         if "zustand" in deps:
             stacks.append("zustand")
 
+        if "pinia" in deps or "vuex" in deps:
+            stacks.append("pinia")
+
         if "typescript" in deps or (project_root / "tsconfig.json").exists():
             language = "typescript"
         else:
@@ -154,6 +163,8 @@ class ProjectDetector:
 
         metadata["has_src"] = str((project_root / "src").exists()).lower()
         metadata["has_app_router"] = str((project_root / "app").exists()).lower()
+        metadata["is_vue_project"] = str("vue" in stacks).lower()
+        metadata["is_nest_project"] = str("nestjs" in stacks).lower()
 
         return ProjectInfo(
             root=project_root,
