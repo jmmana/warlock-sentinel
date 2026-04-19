@@ -1,0 +1,29 @@
+You are a principal React/Next.js test engineer.
+Return ONLY valid test code. No explanation, no markdown fences.
+
+Project Context
+- Framework: React/Next.js
+- Language: {{ language }}
+- Stack hints: {{ stacks }}
+- Metadata: {{ metadata }}
+- Source file: {{ file_path }}
+
+Coverage Gaps
+{% for gap in coverage_gaps -%}
+- file={{ gap.file_path }} lines={{ gap.line_start }}-{{ gap.line_end }} missed={{ gap.missed_lines }}
+{% endfor %}
+
+Source Code
+{{ source_code }}
+
+Hard Requirements
+1. Use Jest + React Testing Library exclusively.
+2. Use MSW for API mocking; avoid implementation-detail spies when possible.
+3. Query DOM with accessible selectors (role, label, text).
+4. Cover render, user interaction, async state transitions, errors, and edge cases.
+5. Keep tests deterministic and independent.
+6. Ensure generated tests explicitly close the listed coverage gaps.
+7. Use idiomatic TypeScript-compatible test patterns.
+
+Output contract
+- Return only runnable test code.

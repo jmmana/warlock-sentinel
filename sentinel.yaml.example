@@ -1,0 +1,52 @@
+# Warlock Sentinel example configuration
+# Copy this file to sentinel.yaml in any target project root.
+
+project_name: my-frontend-app
+framework: auto # auto | flutter | react
+
+llm:
+  provider: gemini
+  model: gemini-2.5-pro
+  api_key_env: GEMINI_API_KEY
+  temperature: 0.2
+
+coverage:
+  target: 85
+
+  # Include patterns for source files to analyze.
+  include:
+    # Flutter projects
+    - lib/**
+    - test/**
+
+    # React / Next.js projects
+    - src/**
+    - app/**
+
+  # Exclude patterns for generated/vendor files.
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.gen.ts"
+    - "**/node_modules/**"
+    - "**/.next/**"
+    - "**/build/**"
+
+generation:
+  max_files_per_run: 20
+  write_mode: overwrite # overwrite | append
+  test_style: pragmatic
+
+  # Optional framework hints for better prompts.
+  flutter:
+    test_dir: test
+    use_mocktail: true
+
+  react:
+    test_dir: src/__tests__
+    use_vitest: true
+    use_react_testing_library: true
+
+output:
+  dashboard_path: .warlock/dashboard.html
+  report_json_path: .warlock/report.json

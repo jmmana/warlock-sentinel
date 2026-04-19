@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "warlock-sentinel"
+version = "0.1.0"
+description = "AI-powered Testing Agent for Flutter, React and Next.js projects"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Juan Manuel" }]
+dependencies = [
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0",
+  "google-generativeai>=0.8.0",
+  "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "ruff>=0.6.0",
+  "mypy>=1.10.0",
+]
+
+[project.scripts]
+warlock = "warlock_sentinel.cli:app"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["warlock_sentinel*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "warlock-sentinel"
+version = "0.1.0"
+description = "AI-powered Testing Agent for Flutter, React and more"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Juan Manuel" }]
+dependencies = [
+  "typer>=0.12.0",
+  "pyyaml>=6.0",
+  "google-generativeai>=0.8.0",
+  "rich>=13.7.0",
+  "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[project.scripts]
+warlock = "warlock_sentinel.cli:app"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["warlock_sentinel*"]
+
+[tool.ruff]
+line-length = 100
