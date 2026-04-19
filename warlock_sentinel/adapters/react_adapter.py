@@ -74,6 +74,47 @@ class ReactAdapter(BaseAdapter):
             error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown JS test error"
             raise RuntimeError(f"React tests failed: {error_text}")
 
+    def run_fast_scan(
+        self,
+        config: SentinelConfig,
+        project: ProjectInfo,
+        project_root: Path,
+        changed_files: list[Path] | None = None,
+    ) -> None:
+        if changed_files:
+            for file_path in changed_files:
+                self.run_single_test(file_path, config, project, project_root)
+            return
+        self.run_tests(config, project, project_root)
+
+    def run_single_test(
+        self,
+        test_path: Path,
+        config: SentinelConfig,
+        project: ProjectInfo,
+        project_root: Path,
+    ) -> None:
+        manager = project.package_manager or "npm"
+        if manager == "pnpm":
+            command = ["pnpm", "test", "--", str(test_path), "--coverage"]
+        elif manager == "yarn":
+            command = ["yarn", "test", str(test_path), "--coverage"]
+        elif manager == "bun":
+            command = ["bun", "test", str(test_path), "--coverage"]
+        else:
+            command = ["npm", "test", "--", str(test_path), "--coverage"]
+
+        completed = subprocess.run(
+            command,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown JS single test error"
+            raise RuntimeError(error_text)
+
     def coverage_paths(self, project_root: Path) -> list[Path]:
         return [
             project_root / "coverage" / "coverage-final.json",

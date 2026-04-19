@@ -27,6 +27,27 @@ class TestGenerator:
         self.console = Console()
         templates_dir = Path(__file__).resolve().parents[1] / "templates"
         self.template_env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=False)
+        self.prompt_template = dedent(
+            """
+            Eres un Agente de QA Automático nivel Senior especializado en {{framework}}.
+            Tu meta es lograr un {{target_coverage}}% de cobertura en el archivo: {{file_name}}.
+
+            CONTEXTO TÉCNICO:
+            - Framework: {{framework}}
+            - Estado/Arquitectura: {{state_management}}
+            - Backend: {{backend_tech}}
+            - Testing Tool: {{test_tool}} con {{mock_library}}
+
+            INSTRUCCIONES:
+            1. Analiza las líneas sin cubrir (Gaps): {{coverage_gaps}}
+            2. Crea los mocks necesarios para {{backend_tech}} usando {{mock_library}}.
+            3. Si el código usa Riverpod, asegúrate de usar ProviderScope y overrides.
+            4. Devuelve SOLO el código del test, sin explicaciones, listo para guardar en un archivo .dart o .js.
+
+            CÓDIGO FUENTE:
+            {{source_code}}
+            """
+        ).strip()
 
     async def generate_tests(
         self,
@@ -52,6 +73,30 @@ class TestGenerator:
         self.console.print("[yellow]Gemini unavailable, returning deterministic template fallback.[/yellow]")
         return self._render_fallback_template(project_info=project_info, file_path=file_path)
 
+    async def fix_test(
+        self,
+        project_info: ProjectInfo,
+        file_path: str,
+        failed_test_code: str,
+        console_error: str,
+    ) -> str:
+        """Repair a failing generated test using only the failing test and the console error."""
+        prompt = self._build_fix_prompt(
+            project_info=project_info,
+            file_path=file_path,
+            failed_test_code=failed_test_code,
+            console_error=console_error,
+        )
+
+        if self.gemini_api_key and genai is not None:
+            with self.console.status("[cyan]Repairing test with Gemini...[/cyan]"):
+                model_output = await asyncio.to_thread(self._call_gemini, prompt)
+            if model_output.strip():
+                return self._extract_code_block(model_output)
+
+        self.console.print("[yellow]Repair model unavailable, keeping existing test code.[/yellow]")
+        return failed_test_code
+
     def _build_prompt(
         self,
         project_info: ProjectInfo,
@@ -67,6 +112,13 @@ class TestGenerator:
         prompt_template = self.template_env.get_template(template_name)
 
         return prompt_template.render(
+            framework=project_info.framework,
+            target_coverage=85,
+            file_name=Path(file_path).name,
+            state_management=self._detect_state_management(project_info),
+            backend_tech=self._detect_backend_tech(project_info),
+            test_tool=self._test_tool(project_info),
+            mock_library=self._mock_library(project_info),
             language=project_info.language,
             stacks=", ".join(project_info.stacks) if project_info.stacks else "none",
             metadata=project_info.metadata,
@@ -74,6 +126,37 @@ class TestGenerator:
             source_code=source_code,
             coverage_gaps=coverage_gaps,
         )
+
+    def _build_fix_prompt(
+        self,
+        project_info: ProjectInfo,
+        file_path: str,
+        failed_test_code: str,
+        console_error: str,
+    ) -> str:
+        return dedent(
+            f"""
+            Eres un Agente de Reparación de Tests Senior especializado en {project_info.framework}.
+            Debes corregir el test fallido y devolver SOLO el código final corregido.
+
+            CONTEXTO TÉCNICO:
+            - Framework: {project_info.framework}
+            - Estado/Arquitectura: {self._detect_state_management(project_info)}
+            - Backend: {self._detect_backend_tech(project_info)}
+            - Testing Tool: {self._test_tool(project_info)} con {self._mock_library(project_info)}
+
+            ERROR DE CONSOLA:
+            {console_error}
+
+            TEST FALLIDO:
+            {failed_test_code}
+
+            Reglas:
+            1. Corrige el error exacto.
+            2. No reescribas el source code original.
+            3. Devuelve solo el código final listo para guardar en {Path(file_path).name}.
+            """
+        ).strip()
 
     def _call_gemini(self, prompt: str) -> str:
         if not self.gemini_api_key:
@@ -125,6 +208,26 @@ class TestGenerator:
             ).strip()
         )
         return template.render(file_name=Path(file_path).name)
+
+    def _detect_state_management(self, project_info: ProjectInfo) -> str:
+        if project_info.framework == "flutter" and "riverpod" in project_info.stacks:
+            return "Riverpod"
+        if project_info.framework == "react" and "redux" in project_info.stacks:
+            return "Redux"
+        if project_info.framework == "react" and "zustand" in project_info.stacks:
+            return "Zustand"
+        return "Unknown/Standard"
+
+    def _detect_backend_tech(self, project_info: ProjectInfo) -> str:
+        if "supabase" in project_info.stacks:
+            return "Supabase"
+        return "HTTP/API layer"
+
+    def _test_tool(self, project_info: ProjectInfo) -> str:
+        return "flutter_test" if project_info.framework == "flutter" else "Jest + RTL"
+
+    def _mock_library(self, project_info: ProjectInfo) -> str:
+        return "mocktail / riverpod_test" if project_info.framework == "flutter" else "MSW / jest mocks"
 
     def _read_source_file(self, file_path: str) -> str:
         return Path(file_path).read_text(encoding="utf-8")

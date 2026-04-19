@@ -6,6 +6,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Table
 
 from warlock_sentinel.adapters.flutter_adapter import FlutterAdapter
 from warlock_sentinel.adapters.react_adapter import ReactAdapter
@@ -65,7 +66,7 @@ async def run_autocuration_loop(
             return
 
         selected = low_files[: config.generation.max_files_per_run]
-        generated_count = await _generate_tests_for_files(
+        generated_files = await _generate_tests_for_files(
             adapter=adapter,
             generator=generator,
             config=config,
@@ -75,7 +76,7 @@ async def run_autocuration_loop(
             console=console,
         )
 
-        if generated_count == 0:
+        if not generated_files:
             console.print(
                 Panel.fit(
                     "No new tests were generated in this iteration.",
@@ -85,13 +86,15 @@ async def run_autocuration_loop(
             )
             return
 
-        with console.status("[cyan]Running test suite and refreshing coverage...[/cyan]"):
-            await asyncio.to_thread(adapter.run_tests, config, project_info, project_root)
+        with console.status("[cyan]Running focused validation and refreshing coverage...[/cyan]"):
+            await asyncio.to_thread(adapter.run_fast_scan, config, project_info, project_root, generated_files)
 
         refreshed_report = await asyncio.to_thread(parser.parse, project_info, str(project_root))
         console.print(
             f"[cyan]Coverage after iteration {iteration}:[/cyan] {refreshed_report.total_coverage:.2f}%"
         )
+
+        _render_iteration_summary(console, low_files[: len(selected)], refreshed_report)
 
         if refreshed_report.total_coverage >= target:
             console.print(Panel.fit("Coverage target reached after test execution.", style="green"))
@@ -115,8 +118,8 @@ async def _generate_tests_for_files(
     project_root: Path,
     file_coverages: list[FileCoverage],
     console: Console,
-) -> int:
-    generated_count = 0
+) -> list[Path]:
+    generated_files: list[Path] = []
 
     progress = Progress(
         SpinnerColumn(),
@@ -153,10 +156,77 @@ async def _generate_tests_for_files(
                 content=test_code,
                 write_mode=config.generation.write_mode,
             )
-            generated_count += 1
+
+            validated_code = await _validate_and_repair_test(
+                adapter=adapter,
+                generator=generator,
+                config=config,
+                project_info=project_info,
+                project_root=project_root,
+                test_path=target_test_path,
+                initial_code=test_code,
+                console=console,
+            )
+
+            if validated_code != test_code:
+                await asyncio.to_thread(
+                    _write_test_code,
+                    path=target_test_path,
+                    content=validated_code,
+                    write_mode="overwrite",
+                )
+
+            generated_files.append(target_test_path)
             progress.advance(task_id)
 
-    return generated_count
+    return generated_files
+
+
+async def _validate_and_repair_test(
+    adapter: FlutterAdapter | ReactAdapter,
+    generator: TestGenerator,
+    config: SentinelConfig,
+    project_info: ProjectInfo,
+    project_root: Path,
+    test_path: Path,
+    initial_code: str,
+    console: Console,
+) -> str:
+    current_code = initial_code
+    last_error = ""
+
+    for attempt in range(1, 4):
+        try:
+            await asyncio.to_thread(
+                adapter.run_single_test,
+                test_path,
+                config,
+                project_info,
+                project_root,
+            )
+            if attempt > 1:
+                console.print(f"[green]Test repaired successfully[/green]: {test_path.name}")
+            return current_code
+        except Exception as error:
+            last_error = str(error)
+            console.print(f"[yellow]Validation failed ({attempt}/3)[/yellow] {test_path.name}")
+            console.print(f"[dim]{last_error}[/dim]")
+            if attempt == 3:
+                break
+
+            current_code = await generator.fix_test(
+                project_info=project_info,
+                file_path=str(test_path),
+                failed_test_code=current_code,
+                console_error=last_error,
+            )
+
+            await asyncio.to_thread(_write_test_code, path=test_path, content=current_code, write_mode="overwrite")
+
+    console.print(f"[red]Unable to repair test after 3 attempts[/red]: {test_path.name}")
+    if last_error:
+        console.print(f"[dim]{last_error}[/dim]")
+    return current_code
 
 
 def _resolve_source_path(project_root: Path, file_path: str) -> Path:
@@ -174,6 +244,41 @@ def _write_test_code(path: Path, content: str, write_mode: str) -> None:
         path.write_text(merged, encoding="utf-8")
         return
     path.write_text(content.strip() + "\n", encoding="utf-8")
+
+
+def _render_iteration_summary(
+    console: Console,
+    previous_files: list[FileCoverage],
+    refreshed_report,
+) -> None:
+    table = Table(title="Iteration Summary", show_lines=False)
+    table.add_column("Archivo", style="cyan")
+    table.add_column("Cobertura anterior", justify="right")
+    table.add_column("Cobertura nueva", justify="right")
+    table.add_column("Estado")
+
+    refreshed_map = {file_cov.file_path: file_cov for file_cov in refreshed_report.files}
+
+    for previous in previous_files:
+        current = refreshed_map.get(previous.file_path)
+        new_coverage = current.coverage if current else previous.coverage
+        delta_state = _status_emoji(new_coverage)
+        table.add_row(
+            previous.file_path,
+            f"{previous.coverage:.2f}%",
+            f"{new_coverage:.2f}%",
+            delta_state,
+        )
+
+    console.print(table)
+
+
+def _status_emoji(coverage: float) -> str:
+    if coverage < 50:
+        return "🔴"
+    if coverage < 80:
+        return "🟡"
+    return "🟢"
 
 
 def _select_adapter(project_info: ProjectInfo) -> FlutterAdapter | ReactAdapter:

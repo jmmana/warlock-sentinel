@@ -41,7 +41,15 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing s
         content = SentinelConfig.defaults(project_name=project_root.name).to_yaml()
 
     config_path.write_text(content, encoding="utf-8")
-    console.print(f"[green]Created[/green] {config_path}")
+    console.print(Panel.fit(f"Created configuration file:\n{config_path}", title="Warlock init", style="green"))
+
+    env_example_path = project_root / ".env.example"
+    if not env_example_path.exists():
+        env_example_path.write_text(
+            "GEMINI_API_KEY=your_gemini_api_key_here\n",
+            encoding="utf-8",
+        )
+        console.print("[green]Created[/green] .env.example")
 
 
 @app.command()
