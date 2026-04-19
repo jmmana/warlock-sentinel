@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import re
 from pathlib import Path
 
 from warlock_sentinel.config import SentinelConfig
@@ -42,6 +43,29 @@ class BaseAdapter(ABC):
     ) -> None:
         """Run a narrower coverage/test pass for recently generated or changed files."""
         self.run_tests(config=config, project=project, project_root=project_root)
+
+    def clean_error_output(self, error_output: str) -> str:
+        """Extract the most relevant error lines from noisy framework output."""
+        lines = [line.strip() for line in error_output.splitlines() if line.strip()]
+        relevant_patterns = [
+            re.compile(r"Expected:|Actual:|TypeError|TypeError:\s|Exception|Error:", re.IGNORECASE),
+            re.compile(r"AssertionError|Failed assertion|NoSuchMethodError|ReferenceError|SyntaxError", re.IGNORECASE),
+            re.compile(r"FAILED\s+\(|FAIL\s+", re.IGNORECASE),
+        ]
+
+        relevant: list[str] = []
+        for line in lines:
+            if any(pattern.search(line) for pattern in relevant_patterns):
+                relevant.append(line)
+
+        if relevant:
+            return "\n".join(dict.fromkeys(relevant))
+
+        for line in reversed(lines):
+            if len(line) > 12:
+                return line
+
+        return error_output.strip()
 
     @abstractmethod
     def run_single_test(

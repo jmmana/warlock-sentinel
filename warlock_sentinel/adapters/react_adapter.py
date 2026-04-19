@@ -72,7 +72,7 @@ class ReactAdapter(BaseAdapter):
         )
         if completed.returncode != 0:
             error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown JS test error"
-            raise RuntimeError(f"React tests failed: {error_text}")
+            raise RuntimeError(self.clean_error_output(error_text))
 
     def run_fast_scan(
         self,
@@ -113,7 +113,7 @@ class ReactAdapter(BaseAdapter):
         )
         if completed.returncode != 0:
             error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown JS single test error"
-            raise RuntimeError(error_text)
+            raise RuntimeError(self.clean_error_output(error_text))
 
     def coverage_paths(self, project_root: Path) -> list[Path]:
         return [

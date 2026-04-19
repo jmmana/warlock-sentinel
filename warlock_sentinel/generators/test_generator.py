@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from textwrap import dedent
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
 
 try:
@@ -27,27 +26,6 @@ class TestGenerator:
         self.console = Console()
         templates_dir = Path(__file__).resolve().parents[1] / "templates"
         self.template_env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=False)
-        self.prompt_template = dedent(
-            """
-            Eres un Agente de QA Automático nivel Senior especializado en {{framework}}.
-            Tu meta es lograr un {{target_coverage}}% de cobertura en el archivo: {{file_name}}.
-
-            CONTEXTO TÉCNICO:
-            - Framework: {{framework}}
-            - Estado/Arquitectura: {{state_management}}
-            - Backend: {{backend_tech}}
-            - Testing Tool: {{test_tool}} con {{mock_library}}
-
-            INSTRUCCIONES:
-            1. Analiza las líneas sin cubrir (Gaps): {{coverage_gaps}}
-            2. Crea los mocks necesarios para {{backend_tech}} usando {{mock_library}}.
-            3. Si el código usa Riverpod, asegúrate de usar ProviderScope y overrides.
-            4. Devuelve SOLO el código del test, sin explicaciones, listo para guardar en un archivo .dart o .js.
-
-            CÓDIGO FUENTE:
-            {{source_code}}
-            """
-        ).strip()
 
     async def generate_tests(
         self,
@@ -106,11 +84,7 @@ class TestGenerator:
         source_code: str,
         coverage_gaps: list[CoverageGap],
     ) -> str:
-        template_name = (
-            "flutter_test_prompt.jinja2"
-            if project_info.framework == "flutter"
-            else "react_test_prompt.jinja2"
-        )
+        template_name = "flutter_test.jinja2" if project_info.framework == "flutter" else "react_test.jinja2"
         prompt_template = self.template_env.get_template(template_name)
 
         return prompt_template.render(
@@ -137,32 +111,18 @@ class TestGenerator:
         failed_test_code: str,
         console_error: str,
     ) -> str:
-        return dedent(
-            f"""
-            Eres un Agente de Reparación de Tests Senior especializado en {project_info.framework}.
-            Debes corregir el test fallido y devolver SOLO el código final corregido.
-
-            CONTEXTO TÉCNICO:
-            - Framework: {project_info.framework}
-            - Estado/Arquitectura: {self._detect_state_management(project_info)}
-            - Backend: {self._detect_backend_tech(project_info)}
-            - Testing Tool: {self._test_tool(project_info)} con {self._mock_library(project_info)}
-
-            ERROR DE CONSOLA:
-            {console_error}
-
-            CÓDIGO FUENTE ORIGINAL:
-            {source_code}
-
-            TEST FALLIDO:
-            {failed_test_code}
-
-            Reglas:
-            1. Corrige el error exacto.
-            2. No reescribas el source code original.
-            3. Devuelve solo el código final listo para guardar en {Path(file_path).name}.
-            """
-        ).strip()
+        prompt_template = self.template_env.get_template("fix_test.jinja2")
+        return prompt_template.render(
+            framework=project_info.framework,
+            file_name=Path(file_path).name,
+            state_management=self._detect_state_management(project_info),
+            backend_tech=self._detect_backend_tech(project_info),
+            test_tool=self._test_tool(project_info),
+            mock_library=self._mock_library(project_info),
+            source_code=source_code,
+            failed_test_code=failed_test_code,
+            console_error=console_error,
+        )
 
     def _call_gemini(self, prompt: str) -> str:
         if not self.gemini_api_key:
@@ -182,38 +142,24 @@ class TestGenerator:
 
     def _render_fallback_template(self, project_info: ProjectInfo, file_path: str) -> str:
         if project_info.framework == "flutter":
-            template = Template(
-                dedent(
-                    """
-                    import 'package:flutter_test/flutter_test.dart';
-                    import 'package:mocktail/mocktail.dart';
+                        return (
+                                "import 'package:flutter_test/flutter_test.dart';\n"
+                                "import 'package:mocktail/mocktail.dart';\n\n"
+                                f"void main() {{\n  group('Generated fallback for {Path(file_path).name}', () {{\n"
+                                "    test('should validate behavior', () {\n"
+                                "      expect(true, isTrue);\n"
+                                "    });\n"
+                                "  });\n}\n"
+                        )
 
-                    void main() {
-                      group('Generated fallback for {{ file_name }}', () {
-                        test('should validate behavior', () {
-                          expect(true, isTrue);
-                        });
-                      });
-                    }
-                    """
-                ).strip()
-            )
-            return template.render(file_name=Path(file_path).name)
-
-        template = Template(
-            dedent(
-                """
-                import { describe, it, expect } from '@jest/globals';
-
-                describe('Generated fallback for {{ file_name }}', () => {
-                  it('validates expected behavior', () => {
-                    expect(true).toBe(true);
-                  });
-                });
-                """
-            ).strip()
-        )
-        return template.render(file_name=Path(file_path).name)
+                return (
+                        "import { describe, it, expect } from '@jest/globals';\n\n"
+                        f"describe('Generated fallback for {Path(file_path).name}', () => {{\n"
+                        "  it('validates expected behavior', () => {\n"
+                        "    expect(true).toBe(true);\n"
+                        "  });\n"
+                        "});\n"
+                )
 
     def _detect_state_management(self, project_info: ProjectInfo) -> str:
         if project_info.framework == "flutter" and "riverpod" in project_info.stacks:

@@ -44,6 +44,8 @@ async def run_autocuration_loop(
 
     await asyncio.to_thread(adapter.prepare, config, project_info, project_root)
 
+    refactor_candidates: list[Path] = []
+
     for iteration in range(1, max_iterations + 1):
         console.print(f"\n[bold]Iteration {iteration}/{max_iterations}[/bold]")
 
@@ -107,6 +109,15 @@ async def run_autocuration_loop(
         if refreshed_report.total_coverage >= target:
             console.print(Panel.fit("Coverage target reached after test execution.", style="green"))
             return
+
+        refactor_candidates.extend(
+            _resolve_source_path(project_root=project_root, file_path=file.file_path)
+            for file in low_files
+            if _resolve_source_path(project_root=project_root, file_path=file.file_path) not in refactor_candidates
+        )
+
+    if refactor_candidates:
+        _render_refactor_notice(console, refactor_candidates)
 
     console.print(
         Panel.fit(
@@ -279,6 +290,19 @@ def _render_iteration_summary(
         _status_emoji(refreshed_report.total_coverage if refreshed_report.total_coverage else target),
     )
 
+    console.print(table)
+
+
+def _render_refactor_notice(console: Console, refactor_candidates: list[Path]) -> None:
+    table = Table(title="Refactor Candidates", show_lines=False)
+    table.add_column("Archivo", style="magenta")
+    table.add_column("Semáforo")
+    table.add_column("Estado")
+
+    for path in refactor_candidates:
+        table.add_row(path.as_posix(), "🔧", "Revisar complejidad / dependencias acopladas")
+
+    console.print(Panel.fit("Archivo(s) marcados para refactorización.", title="Refactor Warning", style="magenta"))
     console.print(table)
 
 
