@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Literal
+from uuid import uuid4
 
 from warlock_sentinel.coverage.parser import CoverageReport, FileCoverage
 
@@ -27,9 +28,9 @@ class DashboardGenerator:
         project_name: str,
         rerun_command: str = "warlock",
     ) -> Path:
-    if output_path.as_posix().endswith("."):
-      output_path = self.default_output_path(Path.cwd())
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        if output_path.as_posix().endswith("."):
+            output_path = self.default_output_path(Path.cwd())
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         modules = self._group_by_module(report.files)
         health_score = self._weighted_health_score(report.files)
@@ -41,58 +42,66 @@ class DashboardGenerator:
 <head>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-  <title>Warlock Sentinel - Quality Report</title>
+  <title>Warlock Sentinel • Quality Report</title>
   <script src=\"https://cdn.tailwindcss.com\"></script>
 </head>
 <body class=\"bg-slate-950 text-slate-100 min-h-screen\">
   <div class=\"max-w-7xl mx-auto px-4 md:px-8 py-8\">
-    <header class=\"mb-8 p-6 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950\">
-      <div class=\"flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6\">
-        <div>
-          <p class=\"text-sky-400 uppercase tracking-widest text-xs\">Warlock Sentinel</p>
-          <h1 class=\"text-3xl md:text-4xl font-extrabold mt-2\">Warlock Sentinel - Quality Report</h1>
-          <p class=\"text-slate-300 mt-3\">Proyecto: <span class=\"font-semibold\">{self._escape(project_name)}</span></p>
-          <p class=\"text-slate-400 text-sm mt-1\">Generado: {self._escape(generated_at)}</p>
+    <header class=\"relative overflow-hidden mb-8 p-6 md:p-8 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 shadow-2xl shadow-indigo-950/40\">
+      <div class=\"absolute -top-16 -right-16 w-56 h-56 bg-cyan-500/10 rounded-full blur-3xl\"></div>
+      <div class=\"absolute -bottom-20 -left-12 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl\"></div>
+
+      <div class=\"relative grid grid-cols-1 lg:grid-cols-3 gap-6 items-center\">
+        <div class=\"lg:col-span-1\">
+          <p class=\"text-cyan-300 uppercase tracking-[0.2em] text-xs font-semibold\">Warlock Sentinel</p>
+          <h1 class=\"text-3xl md:text-4xl font-black mt-2 leading-tight\">Warlock Sentinel • Quality Report</h1>
+          <p class=\"text-slate-300 mt-4\">Proyecto: <span class=\"font-semibold\">{self._escape(project_name)}</span></p>
         </div>
-        <div class="flex flex-col gap-3 w-full lg:w-auto">
+
+        <div class=\"lg:col-span-1 flex justify-center\">
+          <div class=\"relative w-44 h-44 rounded-full border-8 {self._ring_color_class(health_score)} bg-slate-950/70 grid place-items-center shadow-2xl\">
+            <div class=\"absolute inset-3 rounded-full border border-slate-700/80\"></div>
+            <div class=\"relative text-center\">
+              <p class=\"text-xs text-slate-400 uppercase tracking-wide\">Global Health</p>
+              <p class=\"text-5xl font-black {self._score_color_class(health_score)}\">{health_score:.0f}</p>
+              <p class=\"text-xs text-slate-400\">{health_score:.2f}%</p>
+            </div>
+          </div>
+        </div>
+
+        <div class=\"lg:col-span-1 space-y-3\">
           <button
             id=\"rerun-warlock\"
-            class="w-full lg:w-auto bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-7 py-4 rounded-xl shadow-xl shadow-sky-900/40 transition text-base"
+            class=\"w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-slate-950 font-black px-7 py-4 rounded-2xl shadow-xl shadow-indigo-900/50 transition-transform hover:-translate-y-0.5\"
           >
             Re-ejecutar Warlock ahora
           </button>
-          <p class=\"text-xs text-slate-400\">Comando sugerido: <span class=\"font-mono\">{self._escape(rerun_command)}</span></p>
-        </div>
-      </div>
+          <p id=\"copy-feedback\" class=\"text-xs text-slate-400\">Comando: <span class=\"font-mono\">{self._escape(rerun_command)}</span></p>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 flex items-center gap-4">
-          <div class="relative w-24 h-24 rounded-full border-4 border-slate-700 grid place-items-center">
-            <div class="absolute inset-1 rounded-full bg-slate-950/80"></div>
-            <div class="relative text-center">
-              <p class="text-xs text-slate-400">Health</p>
-              <p class="text-2xl font-extrabold {self._score_color_class(health_score)}">{health_score:.0f}</p>
+          <div class=\"grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2\">
+            <div class=\"rounded-xl border border-slate-800 bg-slate-900/70 p-3\">
+              <p class=\"text-xs text-slate-400\">Coverage Total</p>
+              <p class=\"text-2xl font-black {self._score_color_class(report.total_coverage)}\">{report.total_coverage:.2f}%</p>
+            </div>
+            <div class=\"rounded-xl border border-slate-800 bg-slate-900/70 p-3\">
+              <p class=\"text-xs text-slate-400\">Módulos Analizados</p>
+              <p class=\"text-2xl font-black text-slate-100\">{len(modules)}</p>
             </div>
           </div>
-          <div>
-            <p class="text-slate-400 text-sm">Global Health Score</p>
-            <p class="text-3xl font-extrabold {self._score_color_class(health_score)}">{health_score:.2f}%</p>
-          </div>
-        </div>
-        <div class=\"rounded-xl border border-slate-800 bg-slate-900/60 p-4\">
-          <p class=\"text-slate-400 text-sm\">Coverage General</p>
-          <p class=\"text-4xl font-extrabold {self._score_color_class(report.total_coverage)}\">{report.total_coverage:.2f}%</p>
-        </div>
-        <div class=\"rounded-xl border border-slate-800 bg-slate-900/60 p-4\">
-          <p class=\"text-slate-400 text-sm\">Archivos Analizados</p>
-          <p class=\"text-4xl font-extrabold text-slate-100\">{len(report.files)}</p>
+          <p class=\"text-xs text-slate-400\">Fecha y hora: {self._escape(generated_at)}</p>
         </div>
       </div>
     </header>
 
     <main class=\"space-y-4\">
-      {module_cards or '<div class="rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-300">No hay datos de coverage disponibles.</div>'}
+      <section class=\"mb-2\">
+        <h2 class=\"text-2xl font-black\">Módulos del Proyecto</h2>
+        <p class=\"text-slate-400 text-sm\">Explora cada módulo para revisar cobertura y estado por archivo.</p>
+      </section>
+      {module_cards or '<div class="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-slate-300">No hay datos de coverage disponibles.</div>'}
     </main>
+
+    <footer class=\"mt-8 text-center text-xs text-slate-500\">Generado por Warlock Sentinel</footer>
   </div>
 
   <script>
@@ -114,12 +123,20 @@ class DashboardGenerator:
     }});
 
     const rerunButton = document.getElementById('rerun-warlock');
+    const feedback = document.getElementById('copy-feedback');
     if (rerunButton) {{
-      rerunButton.addEventListener('click', () => {{
+      rerunButton.addEventListener('click', async () => {{
         const cmd = {self._js_string(rerun_command)};
-        const encoded = encodeURIComponent(cmd);
-        window.location.href = `?run=${{encoded}}`;
-        alert(`Ejecuta en tu terminal: ${{cmd}}`);
+        try {{
+          if (navigator.clipboard && navigator.clipboard.writeText) {{
+            await navigator.clipboard.writeText(cmd);
+            if (feedback) feedback.textContent = `Comando copiado al portapapeles: ${{cmd}}`;
+          }} else {{
+            if (feedback) feedback.textContent = `Ejecuta en terminal: ${{cmd}}`;
+          }}
+        }} catch (_error) {{
+          if (feedback) feedback.textContent = `Ejecuta en terminal: ${{cmd}}`;
+        }}
       }});
     }}
   </script>
@@ -147,11 +164,7 @@ class DashboardGenerator:
                     coverage=self._weighted_health_score(module_files),
                     files=sorted(module_files, key=lambda item: item.coverage),
                 )
-                    <main class="space-y-4">
-                      <section class="mb-2">
-                        <h2 class="text-2xl font-bold">Módulos del Proyecto</h2>
-                        <p class="text-slate-400 text-sm">Haz click en cada módulo para expandir y ver el detalle por archivo.</p>
-                      </section>
+            )
 
         return sorted(modules, key=lambda module: module.coverage)
 
@@ -183,21 +196,20 @@ class DashboardGenerator:
     def _render_module_card(self, module: ModuleSummary) -> str:
         status = self._status(module.coverage)
         progress = self._progress_bar(module.coverage)
-        module_id = f"module-{abs(hash(module.name))}"
+        module_id = f"module-{uuid4().hex}"
         file_rows = "\n".join(self._render_file_row(file_cov) for file_cov in module.files)
 
         return f"""
-<section class=\"rounded-2xl border border-slate-800 bg-slate-900/80 overflow-hidden\">
-  <button data-accordion-toggle=\"{module_id}\" class=\"w-full text-left p-5 hover:bg-slate-800/50 transition\">
+<section class=\"rounded-2xl border border-slate-800 bg-slate-900/80 overflow-hidden shadow-lg shadow-black/20\">
+  <button data-accordion-toggle=\"{module_id}\" class=\"w-full text-left p-5 hover:bg-slate-800/60 transition\">
     <div class=\"flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4\">
       <div>
         <p class=\"text-slate-300 text-sm\">Módulo</p>
-        <h2 class=\"text-xl font-bold\">{self._escape(module.name)}</h2>
+        <h2 class=\"text-2xl font-black flex items-center gap-3\"><span class=\"text-2xl\">{status['emoji']}</span>{self._escape(module.name)}</h2>
       </div>
       <div class=\"flex flex-wrap items-center gap-3 text-sm\">
-        <span class=\"px-2 py-1 rounded-md border border-slate-700\">Archivos: {len(module.files)}</span>
-        <span class=\"px-2 py-1 rounded-md border border-slate-700\">Promedio: {module.coverage:.2f}%</span>
-        <span class=\"text-xl\">{status['emoji']}</span>
+        <span class=\"px-3 py-1.5 rounded-lg border border-slate-700\">Archivos: {len(module.files)}</span>
+        <span class=\"text-3xl font-black {status['text_class']}\">{module.coverage:.2f}%</span>
         <span data-chevron class=\"text-xl text-slate-400\">▸</span>
       </div>
     </div>
@@ -230,7 +242,7 @@ class DashboardGenerator:
 
     def _progress_bar(self, value: float, compact: bool = False) -> str:
         status = self._status(value)
-        height = "h-3" if compact else "h-4"
+        height = "h-2.5" if compact else "h-5"
         return (
             f"<div class=\"w-full bg-slate-800 rounded-full overflow-hidden {height}\">"
             f"<div class=\"{status['bar_class']} {height}\" style=\"width:{max(0.0, min(100.0, value)):.2f}%\"></div>"
@@ -258,6 +270,13 @@ class DashboardGenerator:
 
     def _score_color_class(self, score: float) -> str:
         return self._status(score)["text_class"]
+
+    def _ring_color_class(self, score: float) -> str:
+        if score < 60:
+            return "border-red-500"
+        if score < 80:
+            return "border-amber-400"
+        return "border-emerald-500"
 
     def _escape(self, text: str) -> str:
         return (
