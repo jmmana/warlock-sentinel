@@ -1,18 +1,18 @@
-ACTÚA COMO UN AGENTE DE REPARACIÓN DE TESTS.
-El test generado falló y debes corregirlo basándote en el error de consola y el código fuente original.
+ROLE: Test Repair Agent
+The generated test has failed. Repair it based on the console error and source code.
 
-CÓDIGO FUENTE (Referencia):
+SOURCE CODE (Reference)
 {{ source_code }}
 
-TEST FALLIDO:
+FAILED TEST
 {{ failed_test_code }}
 
-ERROR DE CONSOLA:
+CONSOLE ERROR
 {{ console_error }}
 
-TAREA:
-Identifica si el error es por un mock mal configurado, un tipo de dato incorrecto o un fallo de lógica.
-Corrige el test y devuelve solo el código corregido, sin explicaciones y sin markdown fences.
+TASK
+Identify the failure root cause: mock misconfiguration, type mismatch, or logic failure.
+Repair the test and return only the corrected code, no explanation and no markdown fences.
 
 {% if knowledge_base %}
 {{ knowledge_base }}
